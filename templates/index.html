@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>비핏 (B-Fit) - 로그인</title>
+  <script>
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        showToast('이메일과 비밀번호를 입력해주세요');
+        return;
+      }
+
+      showToast('로그인 성공!');
+      setTimeout(() => {
+        window.location.href = 'home.html';
+      }, 1000);
+    }
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-md p-6 bg-gray-800 rounded-lg border border-gray-700">
+    
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">👁️</div>
+      <div class="text-xl font-bold text-blue-400">비핏 (B-Fit)</div>
+    </div>
+
+    <form onsubmit="handleLogin(event)" class="space-y-4">
+      <div>
+        <label class="block text-sm mb-1" for="email">이메일</label>
+        <input type="email" id="email" placeholder="example@email.com"
+               class="w-full p-2 bg-gray-900 border border-gray-700 rounded text-white"/>
+      </div>
+      <div>
+        <label class="block text-sm mb-1" for="password">비밀번호</label>
+        <input type="password" id="password" placeholder="••••••••"
+               class="w-full p-2 bg-gray-900 border border-gray-700 rounded text-white"/>
+      </div>
+      <button type="submit"
+              class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold">
+        로그인
+      </button>
+    </form>
+
+    <div class="mt-8">
+      <div class="text-center text-gray-400 text-sm mb-4">간편 로그인</div>
+      <div class="flex flex-col space-y-3">
+        <button onclick="showToast('Kakao 로그인 성공!')" class="w-full py-2 bg-yellow-400 text-gray-900 rounded hover:bg-yellow-300 font-bold">
+          카카오로 시작하기
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-8">
+      <div class="flex flex-col space-y-3">
+        <a href="signup.html" class="w-full py-2 bg-gray-700 text-white rounded hover:bg-gray-600 text-center font-bold">
+          회원가입
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 토스트 메시지 -->
+  <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded hidden">
+    토스트 메시지
+  </div>
+
+</body>
+</html>
