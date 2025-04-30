@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import sqlite3
 import os
@@ -22,15 +22,18 @@ def init_db():
         conn.commit()
         conn.close()
 
-# 루트 페이지 테스트
+# 루트 페이지 (홈 화면)
 @app.route('/')
 def home():
-    return '✅ 서버가 정상적으로 실행 중입니다!'
+    return render_template('home.html')  # 템플릿 폴더의 home.html을 렌더링
 
 # 회원가입 라우트
-@app.route('/signup', methods=['POST'])
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    data = request.json
+    if request.method == 'GET':
+        return render_template('signup.html')  # GET 요청 시 signup.html 보여줌
+
+    data = request.json or request.form
     user_id = data.get('id')
     user_pw = data.get('pw')
 
@@ -39,7 +42,6 @@ def signup():
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-
     c.execute('SELECT id FROM users WHERE id = ?', (user_id,))
     existing_user = c.fetchone()
 
@@ -52,6 +54,11 @@ def signup():
     conn.close()
 
     return jsonify({"success": True, "message": "회원가입 성공!"})
+
+# 통계 페이지 (운동 기록 확인)
+@app.route('/stats')
+def stats():
+    return render_template('stats.html')
 
 if __name__ == '__main__':
     init_db()
