@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>비핏 (B-Fit) - 로그인</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col justify-center items-center p-6">
+  <div class="w-full max-w-md p-6 bg-gray-800 rounded-lg border border-gray-700">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">👁️</div>
+      <div class="text-xl font-bold text-blue-400">비핏 (B-Fit)</div>
+      <div class="text-md text-gray-400">로그인</div>
+    </div>
+
+    <form method="POST" action="/login" class="space-y-4">
+      <div>
+        <label class="block text-sm mb-1" for="id">이메일</label>
+        <input type="email" name="id" id="id" placeholder="example@email.com"
+               class="w-full p-2 bg-gray-900 border border-gray-700 rounded text-white" required>
+      </div>
+
+      <div>
+        <label class="block text-sm mb-1" for="pw">비밀번호</label>
+        <input type="password" name="pw" id="pw" placeholder="비밀번호 입력"
+               class="w-full p-2 bg-gray-900 border border-gray-700 rounded text-white" required>
+      </div>
+
+      <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold">
+        로그인
+      </button>
+    </form>
+
+    <div class="mt-4 text-center">
+      <a href="/signup.html" class="text-sm text-gray-400 hover:text-gray-300">회원가입</a>
+    </div>
+  </div>
+</body>
+</html>

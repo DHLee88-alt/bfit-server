@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_cors import CORS
 import sqlite3
 import os
 
 app = Flask(__name__)
 CORS(app)
+app.secret_key = 'super-secret-key'  # 세션을 위한 시크릿 키
 
 DB_PATH = 'users.db'
 
@@ -22,43 +23,64 @@ def init_db():
         conn.commit()
         conn.close()
 
-# 루트 페이지 (홈 화면)
+# 홈 페이지 (로그인 여부에 따라 표시 변경 가능)
 @app.route('/')
 def home():
-    return render_template('home.html')  # 템플릿 폴더의 home.html을 렌더링
+    user = session.get('user')
+    return render_template('home.html', user=user)
 
-# 회원가입 라우트
+# 회원가입 페이지
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    if request.method == 'GET':
-        return render_template('signup.html')  # GET 요청 시 signup.html 보여줌
+    if request.method == 'POST':
+        data = request.json or request.form
+        user_id = data.get('id')
+        user_pw = data.get('pw')
 
-    data = request.json or request.form
-    user_id = data.get('id')
-    user_pw = data.get('pw')
+        if not user_id or not user_pw:
+            return jsonify({"success": False, "message": "아이디와 비밀번호를 입력하세요."})
 
-    if not user_id or not user_pw:
-        return jsonify({"success": False, "message": "아이디와 비밀번호가 필요합니다."})
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        existing = c.fetchone()
+        if existing:
+            conn.close()
+            return jsonify({"success": False, "message": "이미 존재하는 아이디입니다."})
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT id FROM users WHERE id = ?', (user_id,))
-    existing_user = c.fetchone()
-
-    if existing_user:
+        c.execute('INSERT INTO users (id, password) VALUES (?, ?)', (user_id, user_pw))
+        conn.commit()
         conn.close()
-        return jsonify({"success": False, "message": "이미 존재하는 아이디입니다."})
+        return jsonify({"success": True, "message": "회원가입 완료!"})
 
-    c.execute('INSERT INTO users (id, password) VALUES (?, ?)', (user_id, user_pw))
-    conn.commit()
-    conn.close()
+    return render_template('signup.html')
 
-    return jsonify({"success": True, "message": "회원가입 성공!"})
+# 로그인
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user_id = request.form.get('id')
+        user_pw = request.form.get('pw')
 
-# 통계 페이지 (운동 기록 확인)
-@app.route('/stats')
-def stats():
-    return render_template('stats.html')
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT password FROM users WHERE id = ?', (user_id,))
+        user = c.fetchone()
+        conn.close()
+
+        if user and user[0] == user_pw:
+            session['user'] = user_id
+            return redirect(url_for('home'))
+        else:
+            return '❌ 로그인 실패. 아이디 또는 비밀번호가 잘못되었습니다.'
+
+    return render_template('login.html')
+
+# 로그아웃
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     init_db()
