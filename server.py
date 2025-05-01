@@ -22,12 +22,12 @@ def init_db():
         conn.commit()
         conn.close()
 
-# ✅ 루트 페이지 (서버 작동 확인용)
+# ✅ 루트 페이지 - index.html로 연결
 @app.route('/')
-def home():
-    return '✅ 서버가 정상적으로 실행 중입니다!'
+def index():
+    return render_template('index.html')
 
-# ✅ 회원가입
+# ✅ 회원가입 API
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -53,7 +53,7 @@ def signup():
 
     return jsonify({"success": True, "message": "회원가입 성공!"})
 
-# ✅ 로그인 처리
+# ✅ 로그인 API
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -75,41 +75,31 @@ def login():
     else:
         return jsonify({"success": False, "message": "아이디 또는 비밀번호가 일치하지 않습니다."})
 
-# ✅ 로그인 후 이동할 index.html
-@app.route('/index.html')
-def index_page():
-    return render_template('index.html')
+# ✅ 페이지 렌더링
 
-# ✅ 운동 선택 페이지 exercise-selection.html
-@app.route('/exercise-selection.html')
-def exercise_selection_page():
-    return render_template('exercise-selection.html')
-
-# ✅ 홈 이동용 home.html
 @app.route('/home.html')
 def home_page():
     return render_template('home.html')
 
-# ✅ 회원가입 폼 signup.html
 @app.route('/signup.html')
 def signup_page():
     return render_template('signup.html')
 
-# ✅ 로그인 폼 login.html
 @app.route('/login.html')
 def login_page():
     return render_template('login.html')
 
-# ✅ 운동 화면 exercise.html
+@app.route('/exercise-selection.html')
+def exercise_selection_page():
+    return render_template('exercise-selection.html')
+
 @app.route('/exercise.html')
 def exercise_page():
     return render_template('exercise.html')
 
-# ✅ 운동 기록 화면 stats.html
 @app.route('/stats.html')
 def stats_page():
     return render_template('stats.html')
-
 
 if __name__ == '__main__':
     init_db()
