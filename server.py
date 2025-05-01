@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import sqlite3
 import os
@@ -16,18 +16,20 @@ def init_db():
         c.execute('''
             CREATE TABLE users (
                 id TEXT PRIMARY KEY,
-                password TEXT NOT NULL
+                password TEXT NOT NULL,
+                exercise_count INTEGER DEFAULT 0,
+                last_exercise_date TEXT
             )
         ''')
         conn.commit()
         conn.close()
 
-# ✅ 루트 페이지 - index.html로 연결
+# 루트
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# ✅ 회원가입 API
+# 회원가입
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -53,7 +55,7 @@ def signup():
 
     return jsonify({"success": True, "message": "회원가입 성공!"})
 
-# ✅ 로그인 API
+# 로그인
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -75,8 +77,48 @@ def login():
     else:
         return jsonify({"success": False, "message": "아이디 또는 비밀번호가 일치하지 않습니다."})
 
-# ✅ 페이지 렌더링
+# 운동 기록 저장
+@app.route('/save-exercise', methods=['POST'])
+def save_exercise():
+    data = request.json
+    user_id = data.get('id')
+    today = data.get('date')
 
+    if not user_id or not today:
+        return jsonify({"success": False, "message": "필수 데이터가 없습니다."})
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE users
+        SET exercise_count = exercise_count + 3, last_exercise_date = ?
+        WHERE id = ?
+    ''', (today, user_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "운동 기록 저장 완료!"})
+
+# 운동 기록 가져오기
+@app.route('/get-exercise-data', methods=['GET'])
+def get_exercise_data():
+    user_id = request.args.get('id')
+
+    if not user_id:
+        return jsonify({"success": False, "message": "아이디 없음"})
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT exercise_count, last_exercise_date FROM users WHERE id = ?', (user_id,))
+    result = c.fetchone()
+    conn.close()
+
+    if result:
+        return jsonify({"success": True, "total_count": result[0], "last_date": result[1]})
+    else:
+        return jsonify({"success": False, "message": "사용자 없음"})
+
+# HTML 페이지 렌더링
 @app.route('/home.html')
 def home_page():
     return render_template('home.html')
@@ -100,6 +142,7 @@ def exercise_page():
 @app.route('/stats.html')
 def stats_page():
     return render_template('stats.html')
+
 
 if __name__ == '__main__':
     init_db()
