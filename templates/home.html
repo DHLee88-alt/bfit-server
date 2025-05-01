@@ -1,62 +1,47 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>비핏 (B-Fit) - 홈</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-
-  <script>
-    window.onload = function() {
-      const userId = localStorage.getItem('user_id');
-      if (!userId) {
-        alert('로그인 정보가 없습니다.');
-        window.location.href = 'index.html';
-        return;
-      }
-
-      fetch(`https://bfit-server.onrender.com/get-exercise-data?id=${userId}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            document.getElementById('last-exercise').textContent = data.last_date || '기록 없음';
-            document.getElementById('exercise-count').textContent = (data.total_count || 0) + ' 세트';
-          } else {
-            document.getElementById('last-exercise').textContent = '기록 없음';
-            document.getElementById('exercise-count').textContent = '0 세트';
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          document.getElementById('last-exercise').textContent = '에러';
-          document.getElementById('exercise-count').textContent = '에러';
-        });
-    };
-  </script>
 </head>
 
-<body class="bg-gray-900 text-white min-h-screen p-4">
-  <div class="max-w-xl mx-auto">
-    <div class="text-center mb-6">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col justify-center items-center p-6">
+  <div class="max-w-md w-full">
+    <div class="text-center mb-8">
       <div class="text-4xl mb-2">👁️</div>
       <h1 class="text-2xl font-bold text-blue-400">비핏 (B-Fit)</h1>
-      <p class="text-sm text-gray-400">오늘도 눈 건강 지키기!</p>
+      <p class="text-gray-400 text-sm">오늘도 눈 건강 지키기!</p>
     </div>
 
-    <div class="bg-gray-800 p-6 rounded-lg mb-6">
-      <h2 class="text-lg font-bold mb-2">운동 기록</h2>
-      <div class="text-sm text-gray-300">
-        마지막 운동 날짜: <span id="last-exercise" class="font-semibold">-</span><br>
-        총 누적 세트 수: <span id="exercise-count" class="font-semibold">-</span>
-      </div>
+    <div class="bg-gray-800 rounded-lg p-4 mb-6">
+      <h2 class="text-lg font-semibold mb-2">운동 기록</h2>
+      <p class="text-sm">마지막 운동 날짜: <span id="lastDate">로딩중...</span></p>
+      <p class="text-sm">총 누적 세트 수: <span id="totalSets">로딩중...</span></p>
     </div>
 
-    <div class="bg-gray-800 p-6 rounded-lg text-center">
-      <h2 class="text-lg font-bold mb-4">운동 시작하기</h2>
-      <a href="exercise-selection.html" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
-        운동 선택 화면으로 이동
-      </a>
+    <div class="bg-gray-800 rounded-lg p-4">
+      <h2 class="text-lg font-semibold mb-2">운동 시작하기</h2>
+      <a href="exercise-selection.html" class="block bg-green-500 hover:bg-green-600 text-center py-2 rounded text-white font-bold mt-2">운동 선택 화면으로 이동</a>
     </div>
   </div>
+
+<script>
+const userId = localStorage.getItem('user_id');
+if (userId) {
+  fetch('https://bfit-server.onrender.com/stats/' + userId)
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('lastDate').textContent = data.last_date || '없음';
+      document.getElementById('totalSets').textContent = data.total_sets !== null ? data.total_sets : '없음';
+    })
+    .catch(error => {
+      document.getElementById('lastDate').textContent = '에러';
+      document.getElementById('totalSets').textContent = '에러';
+    });
+}
+</script>
+
 </body>
 </html>
