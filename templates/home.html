@@ -1,4 +1,4 @@
-\<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -16,12 +16,12 @@
       }
 
       try {
-        const response = await fetch(`https://bfit-server.onrender.com/get-exercise?user_id=${userId}`);
+        const response = await fetch(`https://bfit-server.onrender.com/get-exercise-data?id=${userId}`);
         const result = await response.json();
 
         if (result.success) {
-          document.getElementById('last-date').textContent = result.date || "기록 없음";
-          document.getElementById('total-sets').textContent = result.total_sets || "0";
+          document.getElementById('last-date').textContent = result.last_date || "기록 없음";
+          document.getElementById('total-sets').textContent = result.total_count || "0";
         } else {
           document.getElementById('last-date').textContent = "기록 없음";
           document.getElementById('total-sets').textContent = "0";
