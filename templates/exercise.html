@@ -12,7 +12,7 @@
   </style>
 
   <script>
-    let currentSet = 1, currentExercise = 0, timer = 30, interval, animation, isActive = false;
+    let currentSet = 1, currentExercise = 0, timer = 3, interval, animation, isActive = false; // ★ timer 3초
     const exercises = [
       { icon: "↔️", name: "좌우 운동", description: "눈을 좌우로 천천히 움직이세요", move: "horizontal" },
       { icon: "↕️", name: "상하 운동", description: "눈을 위아래로 천천히 움직이세요", move: "vertical" },
@@ -33,8 +33,8 @@
 
     function startExercise() {
       if (isActive) return;
-      updateUI();        // ✅ 시작할 때 UI 갱신
-      animateDot();      // ✅ 타겟 움직이기 시작
+      updateUI();
+      animateDot();
       isActive = true;
 
       interval = setInterval(() => {
@@ -56,7 +56,7 @@
       isActive = false;
       currentSet = 1;
       currentExercise = 0;
-      timer = 3;
+      timer = 3; // ★ 초기화할 때도 3초
       updateUI();
     }
 
@@ -72,7 +72,7 @@
         document.getElementById("complete-msg").classList.remove("hidden");
         return;
       }
-      timer = 3;
+      timer = 3; // ★ 다음 운동할 때도 3초
       isActive = false;
       updateUI();
     }
@@ -143,11 +143,10 @@
       })
       .then(response => response.json())
       .then(result => {
-        if (result.success) {
-          window.location.href = 'home.html';
-        } else {
-          alert('운동 기록 저장 실패');
-        }
+        window.location.href = 'home.html'; // ✅ 성공해도 홈 이동
+      })
+      .catch(error => {
+        window.location.href = 'home.html'; // ✅ 실패해도 홈 이동
       });
     }
 
@@ -172,7 +171,7 @@
       <div id="exercise-icon" class="text-2xl mb-2">👁️</div>
       <h2 id="exercise-name" class="text-lg font-semibold">운동 이름</h2>
       <p id="exercise-desc" class="text-sm">운동 설명</p>
-      <div id="exercise-timer" class="text-xl font-bold mt-2">30초</div>
+      <div id="exercise-timer" class="text-xl font-bold mt-2">3초</div> <!-- ★ 여기 초기 표시도 3초 -->
     </div>
 
     <div id="tracker-box">
