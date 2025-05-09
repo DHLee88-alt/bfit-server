@@ -26,7 +26,7 @@ def init_db():
 # ✅ HTML 페이지 렌더링 라우팅
 @app.route('/')
 def root():
-    return render_template('home.html')
+    return render_template('login.html')
 
 @app.route('/home.html')
 def home_page():
