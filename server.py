@@ -1,20 +1,34 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import sqlite3
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 CORS(app)
 
-# 데이터베이스 경로 (절대경로로 안정성 확보)
-DB_PATH = os.path.join(os.path.dirname(__file__), 'users.db')
+DB_PATH = 'users.db'
 
-# 루트 페이지 (Render 헬스 체크용)
+# ✅ DB 초기화 (자동 테이블 생성 및 컬럼 보완)
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            exercise_count INTEGER DEFAULT 0,
+            last_exercise_date TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# ✅ 루트 → home.html 렌더링
 @app.route('/')
 def index():
-    return 'B-Fit Server is Running!'
+    return render_template('home.html')
 
-# 회원가입
+# ✅ 회원가입
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -37,7 +51,25 @@ def signup():
 
     return jsonify({"success": True, "message": "회원가입 성공"})
 
-# 운동 기록 저장
+# ✅ 로그인
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    user_id = data.get('id')
+    password = data.get('pw')
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT password FROM users WHERE id = ?', (user_id,))
+    result = c.fetchone()
+    conn.close()
+
+    if result and result[0] == password:
+        return jsonify({"success": True, "message": "로그인 성공"})
+    else:
+        return jsonify({"success": False, "message": "아이디 또는 비밀번호가 일치하지 않습니다"})
+
+# ✅ 운동 기록 저장
 @app.route('/save-exercise', methods=['POST'])
 def save_exercise():
     data = request.json
@@ -51,7 +83,8 @@ def save_exercise():
     c = conn.cursor()
     c.execute('''
         UPDATE users
-        SET exercise_count = exercise_count + 3, last_exercise_date = ?
+        SET exercise_count = exercise_count + 3,
+            last_exercise_date = ?
         WHERE id = ?
     ''', (today, user_id))
     conn.commit()
@@ -59,7 +92,7 @@ def save_exercise():
 
     return jsonify({"success": True, "message": "운동 기록 저장 완료"})
 
-# 운동 기록 가져오기
+# ✅ 운동 기록 조회
 @app.route('/get-exercise-data', methods=['GET'])
 def get_exercise_data():
     user_id = request.args.get('id')
@@ -74,10 +107,14 @@ def get_exercise_data():
     conn.close()
 
     if result:
-        return jsonify({"success": True, "total_count": result[0], "last_date": result[1]})
+        return jsonify({
+            "success": True,
+            "total_count": result[0],
+            "last_date": result[1] or "기록 없음"
+        })
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
 
-# 서버 실행
 if __name__ == '__main__':
+    init_db()
     app.run(host='0.0.0.0', port=5000)
