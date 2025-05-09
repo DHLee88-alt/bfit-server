@@ -8,7 +8,7 @@ CORS(app)
 
 DB_PATH = 'users.db'
 
-# ✅ DB 초기화 (자동 테이블 생성 및 컬럼 보완)
+# ✅ DB 초기화
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -23,10 +23,34 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ✅ 루트 → home.html 렌더링
+# ✅ HTML 페이지 렌더링 라우팅
 @app.route('/')
-def index():
+def root():
     return render_template('home.html')
+
+@app.route('/home.html')
+def home_page():
+    return render_template('home.html')
+
+@app.route('/signup.html')
+def signup_page():
+    return render_template('signup.html')
+
+@app.route('/login.html')
+def login_page():
+    return render_template('login.html')
+
+@app.route('/exercise-selection.html')
+def selection_page():
+    return render_template('exercise-selection.html')
+
+@app.route('/exercise.html')
+def exercise_page():
+    return render_template('exercise.html')
+
+@app.route('/stats.html')
+def stats_page():
+    return render_template('stats.html')
 
 # ✅ 회원가입
 @app.route('/signup', methods=['POST'])
@@ -115,6 +139,7 @@ def get_exercise_data():
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
 
+# ✅ 서버 실행
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000)
