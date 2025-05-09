@@ -5,56 +5,179 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>비핏 (B-Fit) - 운동 실행</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-
+  <style>
+    #tracker-box {
+      position: relative; width: 100%; height: 200px;
+      border: 2px solid #4B5563; border-radius: 0.5rem;
+      background-color: #1F2937; overflow: hidden; margin-bottom: 1rem;
+    }
+    #tracker-dot {
+      position: absolute; width: 20px; height: 20px;
+      background-color: #f87171; border-radius: 9999px;
+      transform: translate(-50%, -50%);
+    }
+  </style>
   <script>
-    let finished = false;
+    let currentSet = 1, currentExercise = 0, timer = 3, interval, animation, isActive = false;
+    const exercises = [
+      { icon: "↔️", name: "좌우 운동", description: "눈을 좌우로 천천히 움직이세요", move: "horizontal" },
+      { icon: "↕️", name: "상하 운동", description: "눈을 위아래로 천천히 움직이세요", move: "vertical" },
+      { icon: "↘️↖️", name: "대각선 운동1", description: "눈을 대각선으로 움직이세요", move: "diagonal1" },
+      { icon: "↙️↗️", name: "대각선 운동2", description: "눈을 대각선으로 움직이세요", move: "diagonal2" },
+      { icon: "∞", name: "팔자 운동", description: "눈으로 8자 모양을 그리세요", move: "figure8" },
+      { icon: "↺", name: "팔자 운동 (반시계)", description: "눈으로 8자 모양을 반시계 방향으로 그리세요", move: "figure8-reverse" }
+    ];
 
-    function completeExercise() {
-      finished = true;
-      document.getElementById("complete-msg").classList.remove("hidden");
+    function updateUI() {
+      document.getElementById("exercise-name").textContent = exercises[currentExercise].name;
+      document.getElementById("exercise-icon").textContent = exercises[currentExercise].icon;
+      document.getElementById("exercise-desc").textContent = exercises[currentExercise].description;
+      document.getElementById("exercise-timer").textContent = timer + "초";
+      document.getElementById("set-info").textContent = "세트: " + currentSet + "/3";
+      document.getElementById("exercise-info").textContent = "운동: " + (currentExercise + 1) + "/" + exercises.length;
     }
 
-    async function saveExerciseRecord() {
-      const today = new Date().toISOString().split('T')[0];
-      const userId = localStorage.getItem('user_id');
+    function startExercise() {
+      if (isActive) return;
+      isActive = true;
+      updateUI();
+      animateDot();
+      interval = setInterval(() => {
+        timer--;
+        document.getElementById("exercise-timer").textContent = timer + "초";
+        if (timer <= 0) nextExercise();
+      }, 1000);
+    }
 
-      if (!userId) {
-        alert('로그인이 필요합니다.');
-        window.location.href = 'login.html';
+    function pauseExercise() {
+      clearInterval(interval);
+      cancelAnimationFrame(animation);
+      isActive = false;
+    }
+
+    function cancelExercise() {
+      clearInterval(interval);
+      cancelAnimationFrame(animation);
+      isActive = false;
+      currentSet = 1; currentExercise = 0; timer = 3;
+      updateUI();
+    }
+
+    function nextExercise() {
+      clearInterval(interval);
+      cancelAnimationFrame(animation);
+      if (currentExercise < exercises.length - 1) {
+        currentExercise++;
+      } else if (currentSet < 3) {
+        currentSet++;
+        currentExercise = 0;
+      } else {
+        document.getElementById("complete-msg").classList.remove("hidden");
         return;
       }
+      timer = 3;
+      isActive = false;
+      updateUI();
+    }
 
-      try {
-        const response = await fetch('https://bfit-server.onrender.com/save-exercise', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: userId, date: today })
-        });
+    function animateDot() {
+      const dot = document.getElementById('tracker-dot');
+      const type = exercises[currentExercise].move;
+      const startTime = performance.now();
 
-        const result = await response.json();
+      function moveFrame(time) {
+        const t = (time - startTime) / 1000;
+        const box = document.getElementById('tracker-box');
+        const cx = box.clientWidth / 2, cy = box.clientHeight / 2;
+        let x = cx, y = cy;
+        let speedMultiplier = currentSet === 2 ? 1.5 : currentSet === 3 ? 2 : 1;
+
+        switch(type) {
+          case "horizontal": x = cx + (box.clientWidth/2 - 20) * Math.sin(t * 2 * speedMultiplier); break;
+          case "vertical": y = cy + (box.clientHeight/2 - 20) * Math.sin(t * 2 * speedMultiplier); break;
+          case "diagonal1":
+            x = cx + (box.clientWidth/2 - 20) * Math.sin(t * 2 * speedMultiplier);
+            y = cy + (box.clientHeight/2 - 20) * Math.sin(t * 2 * speedMultiplier); break;
+          case "diagonal2":
+            x = cx - (box.clientWidth/2 - 20) * Math.sin(t * 2 * speedMultiplier);
+            y = cy + (box.clientHeight/2 - 20) * Math.sin(t * 2 * speedMultiplier); break;
+          case "figure8":
+            x = cx + (box.clientWidth/2 - 20) * Math.sin(t * speedMultiplier);
+            y = cy + (box.clientHeight/2 - 20) * Math.sin(t * 2 * speedMultiplier); break;
+          case "figure8-reverse":
+            x = cx + (box.clientWidth/2 - 20) * Math.sin(-t * speedMultiplier);
+            y = cy + (box.clientHeight/2 - 20) * Math.sin(-2 * t * speedMultiplier); break;
+        }
+
+        dot.style.left = `${x}px`;
+        dot.style.top = `${y}px`;
+        animation = requestAnimationFrame(moveFrame);
+      }
+
+      animation = requestAnimationFrame(moveFrame);
+    }
+
+    function saveExerciseRecord() {
+      const today = new Date().toISOString().split('T')[0];
+      const userId = localStorage.getItem('user_id');
+      if (!userId) {
+        alert("로그인이 필요합니다."); window.location.href = 'login.html'; return;
+      }
+
+      fetch('https://bfit-server.onrender.com/save-exercise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, date: today })
+      }).then(res => res.json()).then(result => {
         if (result.success) {
           window.location.href = 'home.html';
         } else {
           alert('운동 기록 저장 실패');
         }
-      } catch (error) {
-        alert('운동 기록 저장 중 오류 발생');
-      }
+      });
     }
 
-    window.onload = function() {
-      setTimeout(completeExercise, 3000); // 3초 후 완료 테스트용
-    }
+    window.onload = updateUI;
   </script>
 </head>
 
-<body class="bg-gray-900 text-white min-h-screen flex flex-col justify-center items-center p-6">
-  <div id="complete-msg" class="hidden text-center">
-    <h2 class="text-lg font-semibold text-green-400">모든 운동 완료!</h2>
-    <p>오늘의 안구 운동을 성공적으로 마쳤습니다.</p>
-    <div class="text-3xl mt-2">🎉 🎊 🎉 🎊 🎉</div>
-    <div class="mt-4">
-      <button onclick="saveExerciseRecord()" class="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm">홈으로</button>
+<body class="bg-gray-900 text-white min-h-screen p-3">
+  <div class="max-w-xl mx-auto">
+    <div class="flex justify-between items-center mb-3">
+      <h1 class="text-xl font-bold">안구 운동 트래커</h1>
+      <a href="exercise-selection.html" class="px-2 py-1 bg-gray-700 text-white rounded-lg hover:bg-gray-600 text-sm">뒤로</a>
+    </div>
+
+    <div class="bg-gray-800 p-3 rounded-lg mb-4">
+      <div class="flex justify-between mb-2 text-sm">
+        <span id="set-info"></span><span id="exercise-info"></span>
+      </div>
+
+      <div class="text-center mb-3">
+        <div id="exercise-icon" class="text-2xl mb-2">👁️</div>
+        <h2 id="exercise-name" class="text-lg font-semibold">운동 이름</h2>
+        <p id="exercise-desc" class="text-sm">운동 설명</p>
+        <div id="exercise-timer" class="text-xl font-bold mt-2">3초</div>
+      </div>
+
+      <div id="tracker-box">
+        <div id="tracker-dot"></div>
+      </div>
+
+      <div class="flex flex-wrap justify-center gap-2 mt-4">
+        <button onclick="startExercise()" class="px-3 py-2 bg-green-500 text-white rounded-lg text-sm">시작하기</button>
+        <button onclick="pauseExercise()" class="px-3 py-2 bg-yellow-500 text-white rounded-lg text-sm">일시정지</button>
+        <button onclick="cancelExercise()" class="px-3 py-2 bg-red-500 text-white rounded-lg text-sm">취소하기</button>
+      </div>
+
+      <div id="complete-msg" class="text-center mt-6 hidden">
+        <h2 class="text-lg font-semibold text-green-400">모든 운동 완료!</h2>
+        <p>오늘의 안구 운동을 성공적으로 마쳤습니다.</p>
+        <div class="text-3xl mt-2">🎉 🎊 🎉 🎊 🎉</div>
+        <div class="mt-4">
+          <button onclick="saveExerciseRecord()" class="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm">홈으로</button>
+        </div>
+      </div>
     </div>
   </div>
 </body>
