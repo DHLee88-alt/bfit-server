@@ -148,6 +148,27 @@ def get_exercise_data():
         })
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
+    
+    @app.route('/admin-users', methods=['GET'])
+def admin_users():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, name, birth, affiliation, exercise_count, last_exercise_date FROM users')
+    users = c.fetchall()
+    conn.close()
+
+    users_list = []
+    for row in users:
+        users_list.append({
+            "id": row[0],
+            "name": row[1],
+            "birth": row[2],
+            "affiliation": row[3],
+            "exercise_count": row[4],
+            "last_exercise_date": row[5]
+        })
+
+    return jsonify({"success": True, "users": users_list})
 
 # ✅ 서버 실행
 if __name__ == '__main__':
