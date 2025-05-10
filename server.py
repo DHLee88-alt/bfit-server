@@ -8,7 +8,7 @@ CORS(app)
 
 DB_PATH = 'users.db'
 
-# ✅ DB 초기화 (추가 컬럼 포함)
+# ✅ DB 초기화 (테이블 및 누락 컬럼 자동 생성)
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -44,7 +44,7 @@ def home_page():
     return render_template('home.html')
 
 @app.route('/exercise-selection.html')
-def select_page():
+def selection_page():
     return render_template('exercise-selection.html')
 
 @app.route('/exercise.html')
@@ -55,6 +55,9 @@ def exercise_page():
 def stats_page():
     return render_template('stats.html')
 
+@app.route('/admin.html')
+def admin_page():
+    return render_template('admin.html')
 
 # ✅ 회원가입 API
 @app.route('/signup', methods=['POST'])
@@ -66,26 +69,26 @@ def signup():
     birth = data.get('birth')
     affiliation = data.get('affiliation')
 
-    if not user_id or not password or not name or not birth or not affiliation:
-        return jsonify({"success": False, "message": "모든 항목을 입력해주세요."})
+    if not user_id or not password:
+        return jsonify({"success": False, "message": "필수 입력 누락"})
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT * FROM users WHERE id = ?', (user_id,))
     if c.fetchone():
         conn.close()
-        return jsonify({"success": False, "message": "이미 존재하는 아이디입니다."})
+        return jsonify({"success": False, "message": "이미 존재하는 아이디"})
 
     c.execute('''
-        INSERT INTO users (id, password, name, birth, affiliation)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date)
+        VALUES (?, ?, ?, ?, ?, 0, NULL)
     ''', (user_id, password, name, birth, affiliation))
     conn.commit()
     conn.close()
 
-    return jsonify({"success": True, "message": "회원가입 성공!"})
+    return jsonify({"success": True, "message": "회원가입 성공"})
 
-# ✅ 로그인
+# ✅ 로그인 API
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -111,7 +114,7 @@ def save_exercise():
     today = data.get('date')
 
     if not user_id or not today:
-        return jsonify({"success": False, "message": "필수 데이터 없음"})
+        return jsonify({"success": False, "message": "필수 데이터 누락"})
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -124,7 +127,7 @@ def save_exercise():
     conn.commit()
     conn.close()
 
-    return jsonify({"success": True})
+    return jsonify({"success": True, "message": "운동 기록 저장 완료"})
 
 # ✅ 운동 기록 조회
 @app.route('/get-exercise-data', methods=['GET'])
@@ -148,27 +151,27 @@ def get_exercise_data():
         })
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
-    
-    @app.route('/admin-users', methods=['GET'])
+
+# ✅ 관리자용 회원 목록 확인 (JSON)
+@app.route('/admin/users')
 def admin_users():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT id, name, birth, affiliation, exercise_count, last_exercise_date FROM users')
-    users = c.fetchall()
+    rows = c.fetchall()
     conn.close()
 
-    users_list = []
-    for row in users:
-        users_list.append({
+    user_list = []
+    for row in rows:
+        user_list.append({
             "id": row[0],
             "name": row[1],
             "birth": row[2],
             "affiliation": row[3],
             "exercise_count": row[4],
-            "last_exercise_date": row[5]
+            "last_date": row[5]
         })
-
-    return jsonify({"success": True, "users": users_list})
+    return jsonify(user_list)
 
 # ✅ 서버 실행
 if __name__ == '__main__':
