@@ -1,14 +1,16 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from flask_cors import CORS
 import sqlite3
 import os
 
 app = Flask(__name__, template_folder='templates')
+app.secret_key = os.urandom(24)  # 세션용 시크릿 키
 CORS(app)
 
 DB_PATH = 'users.db'
+ADMIN_EMAIL = "dark6936@gmail.com"  # 관리자 이메일
 
-# ✅ DB 초기화 (테이블 및 누락 컬럼 자동 생성)
+# ✅ DB 초기화
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -26,7 +28,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ✅ HTML 페이지 렌더링
+# ✅ HTML 페이지 라우팅
 @app.route('/')
 def root():
     return render_template('login.html')
@@ -57,6 +59,8 @@ def stats_page():
 
 @app.route('/admin.html')
 def admin_page():
+    if session.get("user_email") != ADMIN_EMAIL:
+        return redirect(url_for('home_page'))
     return render_template('admin.html')
 
 # ✅ 회원가입 API
@@ -102,6 +106,7 @@ def login():
     conn.close()
 
     if result and result[0] == password:
+        session["user_email"] = user_id  # ✅ 세션 저장
         return jsonify({"success": True})
     else:
         return jsonify({"success": False, "message": "아이디 또는 비밀번호가 일치하지 않습니다."})
@@ -152,9 +157,12 @@ def get_exercise_data():
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
 
-# ✅ 관리자용 회원 목록 확인 (JSON)
-@app.route('/admin/users')
+# ✅ 관리자용 회원 목록 API
+@app.route('/admin-users')
 def admin_users():
+    if session.get("user_email") != ADMIN_EMAIL:
+        return jsonify({"success": False, "message": "접근 권한 없음"}), 403
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT id, name, birth, affiliation, exercise_count, last_exercise_date FROM users')
@@ -169,9 +177,9 @@ def admin_users():
             "birth": row[2],
             "affiliation": row[3],
             "exercise_count": row[4],
-            "last_date": row[5]
+            "last_exercise_date": row[5]
         })
-    return jsonify(user_list)
+    return jsonify({"success": True, "users": user_list})
 
 # ✅ 서버 실행
 if __name__ == '__main__':
