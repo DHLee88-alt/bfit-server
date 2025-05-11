@@ -19,7 +19,6 @@ MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
 KAKAO_CLIENT_ID = os.environ.get("KAKAO_CLIENT_ID")
 KAKAO_REDIRECT_URI = os.environ.get("KAKAO_REDIRECT_URI")
 
-# DB 초기화
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -39,10 +38,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# 이메일 전송 함수
 def send_verification_email(user_email, token):
     link = f"https://bfit-server.onrender.com/verify?token={token}"
-    body = f"""비핏(B-Fit) 회원가입을 환영합니다!\n\n아래 링크를 클릭하여 이메일 인증을 완료해주세요:\n{link}"""
+    body = f"비핏(B-Fit) 회원가입을 환영합니다!\n\n아래 링크를 클릭하여 이메일 인증을 완료해주세요:\n{link}"
     msg = MIMEText(body)
     msg["Subject"] = "비핏 - 이메일 인증"
     msg["From"] = MAIL_ADDRESS
@@ -87,6 +85,10 @@ def admin_page():
         return redirect(url_for('home_page'))
     return render_template('admin.html')
 
+@app.route('/color-response')
+def color_response():
+    return render_template('color-response.html')
+
 @app.route('/verify')
 def verify():
     token = request.args.get("token")
@@ -128,7 +130,6 @@ def signup():
         return jsonify({"success": False, "message": "이미 존재하는 아이디입니다."})
 
     token = secrets.token_urlsafe(16)
-
     c.execute('''
         INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date, is_verified, verify_token)
         VALUES (?, ?, ?, ?, ?, 0, NULL, 0, ?)
@@ -137,7 +138,6 @@ def signup():
     conn.close()
 
     send_verification_email(user_id, token)
-
     return jsonify({"success": True, "message": "회원가입 성공. 이메일을 확인해주세요."})
 
 @app.route('/login', methods=['POST'])
@@ -229,7 +229,6 @@ def admin_users():
         })
     return jsonify({"success": True, "users": user_list})
 
-# ✅ 카카오 로그인
 @app.route("/kakao/login")
 def kakao_login():
     kakao_auth_url = (
@@ -257,8 +256,10 @@ def kakao_callback():
     user_response = requests.get(user_info_url, headers=headers)
     user_data = user_response.json()
 
-    kakao_id = user_data["id"]
-    kakao_email = user_data["kakao_account"].get("email", f"{kakao_id}@kakao")
+    kakao_id = user_data.get("id")
+    kakao_account = user_data.get("kakao_account", {})
+    kakao_email = kakao_account.get("email", f"{kakao_id}@kakao")
+    nickname = user_data.get("properties", {}).get("nickname", "카카오사용자")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -269,7 +270,7 @@ def kakao_callback():
         c.execute('''
             INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date, is_verified)
             VALUES (?, '', ?, '', '카카오', 0, NULL, 1)
-        ''', (kakao_email, user_data["properties"].get("nickname", "카카오사용자")))
+        ''', (kakao_email, nickname))
         conn.commit()
 
     conn.close()

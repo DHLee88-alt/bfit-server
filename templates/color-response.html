@@ -1,0 +1,59 @@
+<!-- templates/color-response.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>색 반응 훈련</title>
+  <script>
+    let score = 0;
+    let total = 0;
+    let colors = ['red', 'blue'];
+    let currentColor = '';
+
+    function showNextColor() {
+      currentColor = colors[Math.floor(Math.random() * 2)];
+      const target = document.getElementById('color-box');
+      target.style.backgroundColor = currentColor;
+      total++;
+    }
+
+    function handleClick(direction) {
+      if ((currentColor === 'blue' && direction === 'left') ||
+          (currentColor === 'red' && direction === 'right')) {
+        score++;
+      }
+      if (total >= 10) {
+        document.getElementById('result').innerText = `정답률: ${Math.round(score / total * 100)}%`;
+        document.getElementById('buttons').style.display = 'none';
+        return;
+      }
+      showNextColor();
+    }
+
+    window.onload = () => {
+      showNextColor();
+    };
+  </script>
+  <style>
+    body { background: #111827; color: white; font-family: sans-serif; text-align: center; }
+    #color-box {
+      margin: 50px auto;
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+    }
+    .btn { margin: 10px; padding: 10px 20px; font-size: 18px; border: none; border-radius: 6px; cursor: pointer; }
+    .left { background: #3B82F6; color: white; }
+    .right { background: #EF4444; color: white; }
+  </style>
+</head>
+<body>
+  <h1 class="text-2xl font-bold mt-8">색 반응 훈련</h1>
+  <div id="color-box"></div>
+  <div id="buttons">
+    <button class="btn left" onclick="handleClick('left')">왼쪽 클릭 (파랑)</button>
+    <button class="btn right" onclick="handleClick('right')">오른쪽 클릭 (빨강)</button>
+  </div>
+  <div id="result" class="mt-4 text-lg"></div>
+</body>
+</html>
