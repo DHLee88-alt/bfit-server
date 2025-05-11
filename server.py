@@ -2,13 +2,20 @@ from flask import Flask, request, jsonify, render_template, session, redirect, u
 from flask_cors import CORS
 import sqlite3
 import os
+import smtplib
+from email.mime.text import MIMEText
+import secrets
 
 app = Flask(__name__, template_folder='templates')
-app.secret_key = os.urandom(24)  # 세션용 시크릿 키
+app.secret_key = os.urandom(24)
 CORS(app)
 
 DB_PATH = 'users.db'
-ADMIN_EMAIL = "dark6936@gmail.com"  # 관리자 이메일
+ADMIN_EMAIL = "dark6936@gmail.com"
+
+# 환경 변수에서 메일 정보 가져오기
+MAIL_ADDRESS = os.environ.get("MAIL_ADDRESS")
+MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
 
 # ✅ DB 초기화
 def init_db():
@@ -22,13 +29,31 @@ def init_db():
             birth TEXT,
             affiliation TEXT,
             exercise_count INTEGER DEFAULT 0,
-            last_exercise_date TEXT
+            last_exercise_date TEXT,
+            is_verified INTEGER DEFAULT 0,
+            verify_token TEXT
         )
     ''')
     conn.commit()
     conn.close()
 
-# ✅ HTML 페이지 라우팅
+# ✅ 인증 메일 발송 함수
+def send_verification_email(user_email, token):
+    link = f"https://bfit-server.onrender.com/verify?token={token}"
+    body = f"""비핏(B-Fit) 회원가입을 환영합니다!\n\n
+아래 링크를 클릭하여 이메일 인증을 완료해주세요:\n{link}"""
+
+    msg = MIMEText(body)
+    msg["Subject"] = "비핏 - 이메일 인증"
+    msg["From"] = MAIL_ADDRESS
+    msg["To"] = user_email
+
+    server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+    server.login(MAIL_ADDRESS, MAIL_PASSWORD)
+    server.sendmail(MAIL_ADDRESS, [user_email], msg.as_string())
+    server.quit()
+
+# ✅ HTML 라우팅
 @app.route('/')
 def root():
     return render_template('login.html')
@@ -63,7 +88,29 @@ def admin_page():
         return redirect(url_for('home_page'))
     return render_template('admin.html')
 
-# ✅ 회원가입 API
+# ✅ 이메일 인증 처리
+@app.route('/verify')
+def verify():
+    token = request.args.get("token")
+    if not token:
+        return "토큰이 없습니다.", 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE verify_token = ?", (token,))
+    user = c.fetchone()
+
+    if user:
+        c.execute("UPDATE users SET is_verified = 1, verify_token = NULL WHERE verify_token = ?", (token,))
+        conn.commit()
+        msg = "✅ 이메일 인증이 완료되었습니다. 이제 로그인할 수 있습니다."
+    else:
+        msg = "❌ 유효하지 않은 토큰입니다."
+
+    conn.close()
+    return msg
+
+# ✅ 회원가입
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -74,25 +121,29 @@ def signup():
     affiliation = data.get('affiliation')
 
     if not user_id or not password:
-        return jsonify({"success": False, "message": "필수 입력 누락"})
+        return jsonify({"success": False, "message": "필수 항목 누락"})
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     if c.fetchone():
         conn.close()
-        return jsonify({"success": False, "message": "이미 존재하는 아이디"})
+        return jsonify({"success": False, "message": "이미 존재하는 아이디입니다."})
+
+    token = secrets.token_urlsafe(16)
 
     c.execute('''
-        INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date)
-        VALUES (?, ?, ?, ?, ?, 0, NULL)
-    ''', (user_id, password, name, birth, affiliation))
+        INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date, is_verified, verify_token)
+        VALUES (?, ?, ?, ?, ?, 0, NULL, 0, ?)
+    ''', (user_id, password, name, birth, affiliation, token))
     conn.commit()
     conn.close()
 
-    return jsonify({"success": True, "message": "회원가입 성공"})
+    send_verification_email(user_id, token)
 
-# ✅ 로그인 API
+    return jsonify({"success": True, "message": "회원가입 성공. 이메일을 확인해주세요."})
+
+# ✅ 로그인
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -101,15 +152,19 @@ def login():
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT password FROM users WHERE id = ?', (user_id,))
+    c.execute('SELECT password, is_verified FROM users WHERE id = ?', (user_id,))
     result = c.fetchone()
     conn.close()
 
-    if result and result[0] == password:
-        session["user_email"] = user_id  # ✅ 세션 저장
+    if result:
+        if result[0] != password:
+            return jsonify({"success": False, "message": "비밀번호가 일치하지 않습니다."})
+        if result[1] == 0:
+            return jsonify({"success": False, "message": "이메일 인증이 필요합니다."})
+        session["user_email"] = user_id
         return jsonify({"success": True})
     else:
-        return jsonify({"success": False, "message": "아이디 또는 비밀번호가 일치하지 않습니다."})
+        return jsonify({"success": False, "message": "존재하지 않는 아이디입니다."})
 
 # ✅ 운동 기록 저장
 @app.route('/save-exercise', methods=['POST'])
@@ -157,7 +212,7 @@ def get_exercise_data():
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
 
-# ✅ 관리자용 회원 목록 API
+# ✅ 관리자 전용 회원 목록
 @app.route('/admin-users')
 def admin_users():
     if session.get("user_email") != ADMIN_EMAIL:
