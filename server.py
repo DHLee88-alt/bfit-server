@@ -5,6 +5,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 import secrets
+import requests
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.urandom(24)
@@ -13,11 +14,12 @@ CORS(app)
 DB_PATH = 'users.db'
 ADMIN_EMAIL = "dark6936@gmail.com"
 
-# 환경 변수에서 메일 정보 가져오기
 MAIL_ADDRESS = os.environ.get("MAIL_ADDRESS")
 MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+KAKAO_CLIENT_ID = os.environ.get("KAKAO_CLIENT_ID")
+KAKAO_REDIRECT_URI = os.environ.get("KAKAO_REDIRECT_URI")
 
-# ✅ DB 초기화
+# DB 초기화
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -37,12 +39,10 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ✅ 인증 메일 발송 함수
+# 이메일 전송 함수
 def send_verification_email(user_email, token):
     link = f"https://bfit-server.onrender.com/verify?token={token}"
-    body = f"""비핏(B-Fit) 회원가입을 환영합니다!\n\n
-아래 링크를 클릭하여 이메일 인증을 완료해주세요:\n{link}"""
-
+    body = f"""비핏(B-Fit) 회원가입을 환영합니다!\n\n아래 링크를 클릭하여 이메일 인증을 완료해주세요:\n{link}"""
     msg = MIMEText(body)
     msg["Subject"] = "비핏 - 이메일 인증"
     msg["From"] = MAIL_ADDRESS
@@ -53,7 +53,6 @@ def send_verification_email(user_email, token):
     server.sendmail(MAIL_ADDRESS, [user_email], msg.as_string())
     server.quit()
 
-# ✅ HTML 라우팅
 @app.route('/')
 def root():
     return render_template('login.html')
@@ -88,7 +87,6 @@ def admin_page():
         return redirect(url_for('home_page'))
     return render_template('admin.html')
 
-# ✅ 이메일 인증 처리
 @app.route('/verify')
 def verify():
     token = request.args.get("token")
@@ -110,7 +108,6 @@ def verify():
     conn.close()
     return msg
 
-# ✅ 회원가입
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -143,7 +140,6 @@ def signup():
 
     return jsonify({"success": True, "message": "회원가입 성공. 이메일을 확인해주세요."})
 
-# ✅ 로그인
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -166,7 +162,6 @@ def login():
     else:
         return jsonify({"success": False, "message": "존재하지 않는 아이디입니다."})
 
-# ✅ 운동 기록 저장
 @app.route('/save-exercise', methods=['POST'])
 def save_exercise():
     data = request.json
@@ -189,7 +184,6 @@ def save_exercise():
 
     return jsonify({"success": True, "message": "운동 기록 저장 완료"})
 
-# ✅ 운동 기록 조회
 @app.route('/get-exercise-data', methods=['GET'])
 def get_exercise_data():
     user_id = request.args.get('id')
@@ -212,7 +206,6 @@ def get_exercise_data():
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
 
-# ✅ 관리자 전용 회원 목록
 @app.route('/admin-users')
 def admin_users():
     if session.get("user_email") != ADMIN_EMAIL:
@@ -236,7 +229,53 @@ def admin_users():
         })
     return jsonify({"success": True, "users": user_list})
 
-# ✅ 서버 실행
+# ✅ 카카오 로그인
+@app.route("/kakao/login")
+def kakao_login():
+    kakao_auth_url = (
+        f"https://kauth.kakao.com/oauth/authorize?response_type=code"
+        f"&client_id={KAKAO_CLIENT_ID}&redirect_uri={KAKAO_REDIRECT_URI}"
+    )
+    return redirect(kakao_auth_url)
+
+@app.route("/kakao/callback")
+def kakao_callback():
+    code = request.args.get("code")
+    token_url = "https://kauth.kakao.com/oauth/token"
+    token_data = {
+        "grant_type": "authorization_code",
+        "client_id": KAKAO_CLIENT_ID,
+        "redirect_uri": KAKAO_REDIRECT_URI,
+        "code": code,
+    }
+    token_response = requests.post(token_url, data=token_data)
+    token_json = token_response.json()
+    access_token = token_json.get("access_token")
+
+    user_info_url = "https://kapi.kakao.com/v2/user/me"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    user_response = requests.get(user_info_url, headers=headers)
+    user_data = user_response.json()
+
+    kakao_id = user_data["id"]
+    kakao_email = user_data["kakao_account"].get("email", f"{kakao_id}@kakao")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE id = ?", (kakao_email,))
+    result = c.fetchone()
+
+    if not result:
+        c.execute('''
+            INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date, is_verified)
+            VALUES (?, '', ?, '', '카카오', 0, NULL, 1)
+        ''', (kakao_email, user_data["properties"].get("nickname", "카카오사용자")))
+        conn.commit()
+
+    conn.close()
+    session["user_email"] = kakao_email
+    return redirect(url_for("home_page"))
+
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000)
