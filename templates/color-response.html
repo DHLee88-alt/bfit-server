@@ -1,59 +1,110 @@
-<!-- templates/color-response.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>색 반응 훈련</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script>
-    let score = 0;
-    let total = 0;
-    let colors = ['red', 'blue'];
-    let currentColor = '';
+    let colors = ["red", "blue"];
+    let currentColor = "";
+    let totalRounds = 6;
+    let currentRound = 0;
+    let correctCount = 0;
+    let timer = null;
+    let timeLeft = 3;
+    let running = false;
 
-    function showNextColor() {
-      currentColor = colors[Math.floor(Math.random() * 2)];
-      const target = document.getElementById('color-box');
-      target.style.backgroundColor = currentColor;
-      total++;
+    function startTraining() {
+      if (running) return;
+      running = true;
+      currentRound = 0;
+      correctCount = 0;
+      nextRound();
     }
 
-    function handleClick(direction) {
-      if ((currentColor === 'blue' && direction === 'left') ||
-          (currentColor === 'red' && direction === 'right')) {
-        score++;
-      }
-      if (total >= 10) {
-        document.getElementById('result').innerText = `정답률: ${Math.round(score / total * 100)}%`;
-        document.getElementById('buttons').style.display = 'none';
+    function nextRound() {
+      if (currentRound >= totalRounds) {
+        endTraining();
         return;
       }
-      showNextColor();
+      currentRound++;
+      document.getElementById("round-info").textContent = `운동: ${currentRound}/${totalRounds}`;
+      currentColor = colors[Math.floor(Math.random() * colors.length)];
+      document.getElementById("circle").style.backgroundColor = currentColor;
+      timeLeft = 3;
+      updateTimerDisplay();
+      timer = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        if (timeLeft === 0) {
+          clearInterval(timer);
+          nextRound();
+        }
+      }, 1000);
     }
 
-    window.onload = () => {
-      showNextColor();
-    };
-  </script>
-  <style>
-    body { background: #111827; color: white; font-family: sans-serif; text-align: center; }
-    #color-box {
-      margin: 50px auto;
-      width: 150px;
-      height: 150px;
-      border-radius: 50%;
+    function updateTimerDisplay() {
+      document.getElementById("timer").textContent = `${timeLeft}초`;
     }
-    .btn { margin: 10px; padding: 10px 20px; font-size: 18px; border: none; border-radius: 6px; cursor: pointer; }
-    .left { background: #3B82F6; color: white; }
-    .right { background: #EF4444; color: white; }
-  </style>
+
+    function handleClick(choice) {
+      if (!running) return;
+      if ((currentColor === "blue" && choice === "left") || (currentColor === "red" && choice === "right")) {
+        correctCount++;
+      }
+      clearInterval(timer);
+      nextRound();
+    }
+
+    function endTraining() {
+      running = false;
+      document.getElementById("circle").style.backgroundColor = "gray";
+      document.getElementById("result").textContent = `정답률: ${(correctCount / totalRounds * 100).toFixed(1)}%`;
+    }
+
+    function pauseTraining() {
+      clearInterval(timer);
+    }
+
+    function cancelTraining() {
+      running = false;
+      currentRound = 0;
+      document.getElementById("round-info").textContent = "운동: 0/0";
+      document.getElementById("circle").style.backgroundColor = "gray";
+      document.getElementById("timer").textContent = "0초";
+      document.getElementById("result").textContent = "";
+    }
+  </script>
 </head>
-<body>
-  <h1 class="text-2xl font-bold mt-8">색 반응 훈련</h1>
-  <div id="color-box"></div>
-  <div id="buttons">
-    <button class="btn left" onclick="handleClick('left')">왼쪽 클릭 (파랑)</button>
-    <button class="btn right" onclick="handleClick('right')">오른쪽 클릭 (빨강)</button>
+<body class="bg-gray-900 text-white min-h-screen p-4">
+  <div class="max-w-xl mx-auto text-center">
+    <div class="flex justify-between items-center mb-2">
+      <h2 class="text-lg font-bold">색 반응 트래커</h2>
+      <a href="exercise-selection.html" class="bg-gray-600 px-3 py-1 rounded hover:bg-gray-500 text-sm">뒤로</a>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4">
+      <div class="flex justify-between text-sm mb-3">
+        <span class="text-gray-400">세트: 1/1</span>
+        <span id="round-info" class="text-gray-400">운동: 0/0</span>
+      </div>
+      <div class="mb-3 text-lg font-bold">색 반응 훈련</div>
+      <div class="text-sm text-gray-300 mb-2">파랑은 왼쪽 클릭, 빨강은 오른쪽 클릭</div>
+      <div id="timer" class="text-xl font-bold mb-4">0초</div>
+      <div class="bg-gray-900 w-full h-64 rounded-lg border border-gray-700 flex items-center justify-center">
+        <div id="circle" class="w-24 h-24 bg-gray-700 rounded-full"></div>
+      </div>
+      <div class="flex justify-center gap-4 mt-6">
+        <button onclick="handleClick('left')" class="bg-blue-500 px-4 py-2 rounded hover:bg-blue-400">왼쪽 클릭 (파랑)</button>
+        <button onclick="handleClick('right')" class="bg-red-500 px-4 py-2 rounded hover:bg-red-400">오른쪽 클릭 (빨강)</button>
+      </div>
+      <div id="result" class="mt-4 text-green-400 font-semibold"></div>
+      <div class="flex justify-center gap-4 mt-6">
+        <button onclick="startTraining()" class="bg-green-500 px-4 py-2 rounded hover:bg-green-400">시작하기</button>
+        <button onclick="pauseTraining()" class="bg-yellow-500 px-4 py-2 rounded hover:bg-yellow-400">일시정지</button>
+        <button onclick="cancelTraining()" class="bg-red-500 px-4 py-2 rounded hover:bg-red-400">취소하기</button>
+      </div>
+    </div>
   </div>
-  <div id="result" class="mt-4 text-lg"></div>
 </body>
 </html>

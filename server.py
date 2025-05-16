@@ -1,6 +1,7 @@
+# PostgreSQL 전환 버전 server.py
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from flask_cors import CORS
-import sqlite3
+from flask_sqlalchemy import SQLAlchemy
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -11,44 +12,35 @@ app = Flask(__name__, template_folder='templates')
 app.secret_key = os.urandom(24)
 CORS(app)
 
-DB_PATH = 'users.db'
-ADMIN_EMAIL = "dark6936@gmail.com"
+# PostgreSQL 연결 설정
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('POSTGRES_URL')  # Render 환경변수에 설정
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-MAIL_ADDRESS = os.environ.get("MAIL_ADDRESS")
-MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
-KAKAO_CLIENT_ID = os.environ.get("KAKAO_CLIENT_ID")
-KAKAO_REDIRECT_URI = os.environ.get("KAKAO_REDIRECT_URI")
+db = SQLAlchemy(app)
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            password TEXT NOT NULL,
-            name TEXT,
-            birth TEXT,
-            affiliation TEXT,
-            exercise_count INTEGER DEFAULT 0,
-            last_exercise_date TEXT,
-            is_verified INTEGER DEFAULT 0,
-            verify_token TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# 사용자 모델 정의
+class User(db.Model):
+    id = db.Column(db.String(100), primary_key=True)
+    password = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100))
+    birth = db.Column(db.String(100))
+    affiliation = db.Column(db.String(100))
+    exercise_count = db.Column(db.Integer, default=0)
+    last_exercise_date = db.Column(db.String(100))
+    is_verified = db.Column(db.Boolean, default=False)
+    verify_token = db.Column(db.String(200))
 
 def send_verification_email(user_email, token):
     link = f"https://bfit-server.onrender.com/verify?token={token}"
     body = f"비핏(B-Fit) 회원가입을 환영합니다!\n\n아래 링크를 클릭하여 이메일 인증을 완료해주세요:\n{link}"
     msg = MIMEText(body)
-    msg["Subject"] = "비핏 - 이메일 인증"
-    msg["From"] = MAIL_ADDRESS
-    msg["To"] = user_email
+    msg['Subject'] = "비핏 - 이메일 인증"
+    msg['From'] = os.environ.get("MAIL_ADDRESS")
+    msg['To'] = user_email
 
     server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-    server.login(MAIL_ADDRESS, MAIL_PASSWORD)
-    server.sendmail(MAIL_ADDRESS, [user_email], msg.as_string())
+    server.login(os.environ.get("MAIL_ADDRESS"), os.environ.get("MAIL_PASSWORD"))
+    server.sendmail(os.environ.get("MAIL_ADDRESS"), [user_email], msg.as_string())
     server.quit()
 
 @app.route('/')
@@ -81,7 +73,7 @@ def stats_page():
 
 @app.route('/admin.html')
 def admin_page():
-    if session.get("user_email") != ADMIN_EMAIL:
+    if session.get("user_email") != "dark6936@gmail.com":
         return redirect(url_for('home_page'))
     return render_template('admin.html')
 
@@ -92,23 +84,14 @@ def color_response():
 @app.route('/verify')
 def verify():
     token = request.args.get("token")
-    if not token:
-        return "토큰이 없습니다.", 400
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT id FROM users WHERE verify_token = ?", (token,))
-    user = c.fetchone()
-
+    user = User.query.filter_by(verify_token=token).first()
     if user:
-        c.execute("UPDATE users SET is_verified = 1, verify_token = NULL WHERE verify_token = ?", (token,))
-        conn.commit()
-        msg = "✅ 이메일 인증이 완료되었습니다. 이제 로그인할 수 있습니다."
+        user.is_verified = True
+        user.verify_token = None
+        db.session.commit()
+        return "✅ 이메일 인증이 완료되었습니다. 이제 로그인할 수 있습니다."
     else:
-        msg = "❌ 유효하지 않은 토큰입니다."
-
-    conn.close()
-    return msg
+        return "❌ 유효하지 않은 토큰입니다."
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -122,20 +105,13 @@ def signup():
     if not user_id or not password:
         return jsonify({"success": False, "message": "필수 항목 누락"})
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    if c.fetchone():
-        conn.close()
+    if User.query.get(user_id):
         return jsonify({"success": False, "message": "이미 존재하는 아이디입니다."})
 
     token = secrets.token_urlsafe(16)
-    c.execute('''
-        INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date, is_verified, verify_token)
-        VALUES (?, ?, ?, ?, ?, 0, NULL, 0, ?)
-    ''', (user_id, password, name, birth, affiliation, token))
-    conn.commit()
-    conn.close()
+    new_user = User(id=user_id, password=password, name=name, birth=birth, affiliation=affiliation, verify_token=token)
+    db.session.add(new_user)
+    db.session.commit()
 
     send_verification_email(user_id, token)
     return jsonify({"success": True, "message": "회원가입 성공. 이메일을 확인해주세요."})
@@ -145,19 +121,14 @@ def login():
     data = request.json
     user_id = data.get('id')
     password = data.get('pw')
+    user = User.query.get(user_id)
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT password, is_verified FROM users WHERE id = ?', (user_id,))
-    result = c.fetchone()
-    conn.close()
-
-    if result:
-        if result[0] != password:
+    if user:
+        if user.password != password:
             return jsonify({"success": False, "message": "비밀번호가 일치하지 않습니다."})
-        if result[1] == 0:
+        if not user.is_verified:
             return jsonify({"success": False, "message": "이메일 인증이 필요합니다."})
-        session["user_email"] = user_id
+        session["user_email"] = user.id
         return jsonify({"success": True})
     else:
         return jsonify({"success": False, "message": "존재하지 않는 아이디입니다."})
@@ -167,116 +138,49 @@ def save_exercise():
     data = request.json
     user_id = data.get('id')
     today = data.get('date')
+    user = User.query.get(user_id)
 
-    if not user_id or not today:
-        return jsonify({"success": False, "message": "필수 데이터 누락"})
+    if not user:
+        return jsonify({"success": False, "message": "사용자 없음"})
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        UPDATE users
-        SET exercise_count = exercise_count + 3,
-            last_exercise_date = ?
-        WHERE id = ?
-    ''', (today, user_id))
-    conn.commit()
-    conn.close()
-
+    user.exercise_count += 3
+    user.last_exercise_date = today
+    db.session.commit()
     return jsonify({"success": True, "message": "운동 기록 저장 완료"})
 
 @app.route('/get-exercise-data', methods=['GET'])
 def get_exercise_data():
     user_id = request.args.get('id')
+    user = User.query.get(user_id)
 
-    if not user_id:
-        return jsonify({"success": False, "message": "아이디 없음"})
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT exercise_count, last_exercise_date FROM users WHERE id = ?', (user_id,))
-    result = c.fetchone()
-    conn.close()
-
-    if result:
+    if user:
         return jsonify({
             "success": True,
-            "total_count": result[0],
-            "last_date": result[1] or "기록 없음"
+            "total_count": user.exercise_count,
+            "last_date": user.last_exercise_date or "기록 없음"
         })
     else:
         return jsonify({"success": False, "message": "사용자 없음"})
 
 @app.route('/admin-users')
 def admin_users():
-    if session.get("user_email") != ADMIN_EMAIL:
+    if session.get("user_email") != "dark6936@gmail.com":
         return jsonify({"success": False, "message": "접근 권한 없음"}), 403
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT id, name, birth, affiliation, exercise_count, last_exercise_date FROM users')
-    rows = c.fetchall()
-    conn.close()
-
-    user_list = []
-    for row in rows:
-        user_list.append({
-            "id": row[0],
-            "name": row[1],
-            "birth": row[2],
-            "affiliation": row[3],
-            "exercise_count": row[4],
-            "last_exercise_date": row[5]
-        })
+    users = User.query.all()
+    user_list = [
+        {
+            "id": u.id,
+            "name": u.name,
+            "birth": u.birth,
+            "affiliation": u.affiliation,
+            "exercise_count": u.exercise_count,
+            "last_exercise_date": u.last_exercise_date
+        } for u in users
+    ]
     return jsonify({"success": True, "users": user_list})
 
-@app.route("/kakao/login")
-def kakao_login():
-    kakao_auth_url = (
-        f"https://kauth.kakao.com/oauth/authorize?response_type=code"
-        f"&client_id={KAKAO_CLIENT_ID}&redirect_uri={KAKAO_REDIRECT_URI}"
-    )
-    return redirect(kakao_auth_url)
-
-@app.route("/kakao/callback")
-def kakao_callback():
-    code = request.args.get("code")
-    token_url = "https://kauth.kakao.com/oauth/token"
-    token_data = {
-        "grant_type": "authorization_code",
-        "client_id": KAKAO_CLIENT_ID,
-        "redirect_uri": KAKAO_REDIRECT_URI,
-        "code": code,
-    }
-    token_response = requests.post(token_url, data=token_data)
-    token_json = token_response.json()
-    access_token = token_json.get("access_token")
-
-    user_info_url = "https://kapi.kakao.com/v2/user/me"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    user_response = requests.get(user_info_url, headers=headers)
-    user_data = user_response.json()
-
-    kakao_id = user_data.get("id")
-    kakao_account = user_data.get("kakao_account", {})
-    kakao_email = kakao_account.get("email", f"{kakao_id}@kakao")
-    nickname = user_data.get("properties", {}).get("nickname", "카카오사용자")
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT id FROM users WHERE id = ?", (kakao_email,))
-    result = c.fetchone()
-
-    if not result:
-        c.execute('''
-            INSERT INTO users (id, password, name, birth, affiliation, exercise_count, last_exercise_date, is_verified)
-            VALUES (?, '', ?, '', '카카오', 0, NULL, 1)
-        ''', (kakao_email, nickname))
-        conn.commit()
-
-    conn.close()
-    session["user_email"] = kakao_email
-    return redirect(url_for("home_page"))
-
 if __name__ == '__main__':
-    init_db()
+    with app.app_context():
+        db.create_all()
     app.run(host='0.0.0.0', port=5000)
