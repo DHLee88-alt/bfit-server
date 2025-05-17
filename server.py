@@ -184,3 +184,19 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(host='0.0.0.0', port=5000)
+
+@app.route('/debug-users')
+def debug_users():
+    users = User.query.all()
+    return jsonify([
+        {
+            "id": u.id,
+            "name": u.name,
+            "birth": u.birth,
+            "affiliation": u.affiliation,
+            "verified": u.is_verified,
+            "exercise_count": u.exercise_count,
+            "last_exercise_date": u.last_exercise_date
+        }
+        for u in users
+    ])
